@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>User Submitted Cases</title>
+  <meta charset="utf-8">
+  <style>
+     body {
+      margin: 0;
+    padding: 0;
+    background-image: url('images/pxfuel.jpg');
+    }
+
+    .navbar a {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: rgba(76, 175, 80, 0.7);
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+
+    /* Header styles */
+    header {
+      background-color: #222;
+      color: #fff;
+      padding: 10px; /* Updated padding */
+      text-align: center;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+    }
+
+    /* Button styles */
+    button {
+      background-color: rgba(76, 175, 80, 0.7); /* Green background */
+      border: none; /* Remove border */
+      color: white; /* White text */
+      padding: 12px 24px; /* Add some padding */
+      text-align: center; /* Center text */
+      text-decoration: none; /* Remove underline */
+      display: inline-block;
+      font-size: 16px;
+      margin-top: 25px;
+      margin-left: 30px;
+      cursor: pointer; /* Add cursor on hover */
+      border-radius: 5px; 
+    }
+
+    #response-container {
+      margin-top: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      table-layout: fixed;
+      float: left;
+      width: 50%;
+      margin: 20px;
+      margin-top: 55px;
+      background-color: #222;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+      color: #ccc;
+    }
+
+    th {
+      background-color: #333;
+      padding: 10px;
+      text-align: left;
+      border: 1px solid #ddd;
+      font-size: 16px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+      font-size: 14px;
+      color: #ccc;
+      width: 110px;
+      word-wrap: break-word;
+    }
+
+    tbody tr:hover {
+      background-color: #444;
+    }
+
+    td.selected {
+      background-color: #555;
+      color: #fff;
+    }
+
+    a.view-document-link {
+      color: #ff0000;
+      font-size: 15px;
+    }
+
+    #map {
+      height: 500px;
+      border-radius: 10px;
+      width: 40%;
+      overflow: hidden;
+      margin: 50px;
+      display: block;
+      float: right;
+    }
+
+    #refresh-button {
+  background-color: rgba(21, 109, 21, 0.7);
+  display: block;
+  position: absolute;
+  bottom: 275px;
+  right: 50px;
+  margin-top: -50px;
+  clear: both;
+}
+
+  </style>
+  <script>
+     var map;
+    var polygons = [];
+    var firstPolygon = true;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 12.9716, lng: 77.5946 },
+        zoom: 10.5,
+        mapTypeId: google.maps.MapTypeId.HYBRID
+      });
+
+      // Get the phone number from the URL query parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const phoneNumber = urlParams.get('phone');
+
+      // Fetch data from the API endpoint using the retrieved phone number
+      const url = `https://z67y80kz0j.execute-api.us-west-1.amazonaws.com/dev/usersubmitted?phone=${encodeURIComponent(phoneNumber)}`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => displayResponse(data))
+        .catch(error => console.error(error));
+
+      // Display the API response on the page
+      function displayResponse(response) {
+  const responseBody = JSON.parse(response['body-json']['body']);
+  const responseContainer = document.getElementById("response-container");
+  responseContainer.innerHTML = generateTable(responseBody);
+
+  // Add click event listeners to OS number cells
+  const osNumberCells = document.querySelectorAll('.os-number-cell');
+  osNumberCells.forEach(cell => {
+    cell.addEventListener('click', handleOsNumberClick);
+  });
+}
+
+
+      // Generate the table HTML
+  // Generate the table HTML
+  function generateTable(data) {
+  let tableHTML = '<table>';
+  tableHTML += '<tr><th>OS Number</th><th>Document</th><th>Verification Status</th></tr>';
+
+  for (let i = 0; i < data.length; i++) {
+    const item = data[i];
+    const osNumber = item.osnumber;
+    const cdnURL = item.cdn_url;
+    const verificationStatus = item.verificationStatus || ''; // Handle null verification status
+
+    tableHTML += `<tr><td class="os-number-cell" data-coordinates="${item.coordinates.join(', ')}">${osNumber}</td><td><a href="${cdnURL}" target="_blank" class="view-document-link">View Document</a></td><td>${verificationStatus}</td></tr>`;
+  }
+
+  tableHTML += '</table>';
+  return tableHTML;
+}
+
+
+
+      function handleRefreshClick() {
+        // Clear previously drawn polygons
+        polygons.forEach(polygon => {
+          polygon.setMap(null);
+        });
+        polygons = [];
+
+        // Zoom out to default level
+        map.setCenter({ lat: 12.9716, lng: 77.5946 });
+        map.setZoom(10.5);
+      }
+
+      // Handle OS number click event
+      function handleOsNumberClick(event) {
+        const selectedOsNumberCell = event.target;
+        const coordinates = selectedOsNumberCell.dataset.coordinates;
+
+        // Clear previously drawn polygons
+        polygons.forEach(polygon => {
+          polygon.setMap(null);
+        });
+
+        // Draw new polygon
+        const polygon = new google.maps.Polygon({
+          paths: parseCoordinates(coordinates),
+          strokeColor: '#FF0000',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: '#FF0000',
+          fillOpacity: 0.35
+        });
+
+        polygon.setMap(map);
+        polygons.push(polygon);
+
+        // Fit the map bounds to the polygon with a zoom effect
+        const bounds = new google.maps.LatLngBounds();
+        polygon.getPath().forEach(function (latLng) {
+          bounds.extend(latLng);
+        });
+
+        // Zoom to fit the bounds with a smooth effect
+        zoomToPolygon(bounds);
+      }
+
+      // Zoom to the polygon bounds with a smooth effect
+      function zoomToPolygon(bounds) {
+        const zoomChangeBoundsListener = google.maps.event.addListenerOnce(map, 'bounds_changed', function () {
+          const zoomLevel = Math.min(map.getZoom(), 15);
+          map.setZoom(zoomLevel);
+        });
+
+        map.fitBounds(bounds);
+        setTimeout(function () {
+          google.maps.event.removeListener(zoomChangeBoundsListener);
+        }, 2000);
+      }
+      // Add click event listener to the refresh button
+const refreshButton = document.getElementById('refresh-button');
+refreshButton.addEventListener('click', handleRefreshClick);
+
+// Handle refresh button click event
+function handleRefreshClick() {
+  // Clear previously drawn polygons
+  polygons.forEach(polygon => {
+    polygon.setMap(null);
+  });
+  polygons = [];
+
+  // Zoom out to default level
+  map.setCenter({ lat: 12.9716, lng: 77.5946 });
+  map.setZoom(10.5);
+}
+
+
+      // Parse coordinates string into an array of LatLng objects
+      function parseCoordinates(coordinates) {
+        const coordinatesArray = coordinates.split(', ');
+        const parsedCoordinates = [];
+
+        for (let i = 0; i < coordinatesArray.length; i += 2) {
+          const lat = parseFloat(coordinatesArray[i]);
+          const lng = parseFloat(coordinatesArray[i + 1]);
+          parsedCoordinates.push({ lat, lng });
+        }
+
+        return parsedCoordinates;
+      }
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>DAAVE (ದಾವೆ)</h1>
+    <div class="navbar">
+      <a href="litigation_submit.html">Back</a>
+    </div>
+  </header>
+  <button id="refresh-button">Refresh</button> <!-- Add this line -->
+  <div id="response-container"></div>
+  <div id="map"></div>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3FtL6J_gdoFLRkbesLGtD9ixCZ2rFhsM&callback=initMap" async defer></script>
+</body>
+</html>

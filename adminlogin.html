@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-image: url(images/loginimage1.jpg);
+      background-size: cover;
+    }
+
+    .navbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 5px;
+      background-color: transparent;
+    }
+
+    .navbar a {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: rgba(76, 175, 80, 0.7);
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+
+    .container {
+      max-width: 400px;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 5px;
+      margin: 0 auto;
+      margin-top: 50px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #555;
+      padding: 20px 0;
+    }
+
+    form {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    input[type="tel"],
+    input[type="text"] {
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+  </style>
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.985.0.min.js"></script>
+</head>
+<body>
+  <div class="navbar">
+    <a href="index.html">Back</a>
+  </div>
+
+  <div class="container">
+    <h1>Admin Login</h1>
+    <form id="signupForm">
+      <input type="tel" id="phoneInput" placeholder="Phone Number" required><br>
+      <button type="submit">Sign Up</button>
+    </form>
+    <form id="otpLoginForm" style="display: none;">
+      <input type="text" id="otpInput" placeholder="OTP" required><br>
+      <button type="submit">Login</button>
+    </form>
+    <p id="result"></p> <!-- Added a paragraph element to display the login result -->
+  </div>
+
+<script>
+  AWS.config.region = 'us-west-1';
+  AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+    IdentityPoolId: 'us-west-1:eefb5c8c-ce23-4af5-94d6-8dc1f66edd58',
+  });
+
+  var cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
+  var session;
+
+  function sendOTP(phoneNumber) {
+    var params = {
+      ClientId: '3h7mai6g0p4iptuamgn91nilj4',
+      AuthFlow: 'CUSTOM_AUTH',
+      AuthParameters: {
+        USERNAME: phoneNumber,
+      }
+    };
+
+    cognitoIdentityServiceProvider.initiateAuth(params, function (err, data) {
+      if (err) {
+        console.log('Initiate Auth Error:', err);
+        if (err.code === 'UserNotConfirmedException') {
+          // Add your code here to send the OTP
+          // session = data.Session; // Store the session for later use
+          // document.getElementById('signupForm').style.display = 'none';
+          // document.getElementById('otpLoginForm').style.display = 'block';
+          // console.log('Sending OTP...');
+        }
+      } else {
+        console.log('Initiate Auth Response:', data);
+        if (data.ChallengeName === 'CUSTOM_CHALLENGE') {
+          session = data.Session;
+          document.getElementById('signupForm').style.display = 'none';
+          document.getElementById('otpLoginForm').style.display = 'block';
+        } else {
+          console.log('Unexpected Challenge Name:', data.ChallengeName);
+        }
+      }
+    });
+  }
+
+  document.getElementById('signupForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    var phoneNumber = document.getElementById('phoneInput').value;
+    var params = {
+      ClientId: '3h7mai6g0p4iptuamgn91nilj4',
+      Username: phoneNumber,
+      Password: 'dummyPassword',
+      UserAttributes: [
+        {
+          Name: 'phone_number',
+          Value: phoneNumber
+        }
+      ]
+    };
+
+    cognitoIdentityServiceProvider.signUp(params, function (err, data) {
+      if (err) {
+        if (err.code === 'UsernameExistsException') {
+          console.log('User already exists');
+          sendOTP(phoneNumber);
+        } else {
+          console.log('Sign Up Error:', err);
+        }
+      } else {
+        console.log('Sign Up Response:', data);
+        sendOTP(phoneNumber);
+      }
+    });
+  });
+
+  document.getElementById('otpLoginForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    var phoneNumber = document.getElementById('phoneInput').value;
+    var otp = document.getElementById('otpInput').value;
+    var params = {
+      ChallengeName: 'CUSTOM_CHALLENGE',
+      ClientId: '3h7mai6g0p4iptuamgn91nilj4',
+      ChallengeResponses: {
+        USERNAME: phoneNumber,
+        ANSWER: otp,
+      },
+      Session: session
+    };
+
+    console.log('Initiating Auth with OTP:', otp);
+
+    cognitoIdentityServiceProvider.respondToAuthChallenge(params, function (err, data) {
+      if (err) {
+        console.log('Respond to Auth Challenge Error:', err);
+      } else {
+        console.log('Respond to Auth Challenge Response:', data);
+        if (data.AuthenticationResult) {
+          console.log('Login Successful');
+          // Handle successful login response
+          // Extract tokens from data.AuthenticationResult and perform necessary actions
+          sessionStorage.setItem('phoneNumber', phoneNumber);
+            // Redirect to the next page
+          window.location.href = 'admindashboard.html?phone=' + encodeURIComponent(phoneNumber);
+        } else {
+          console.log('Invalid OTP');
+          // Handle invalid OTP
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>

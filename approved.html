@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3FtL6J_gdoFLRkbesLGtD9ixCZ2rFhsM&callback=initMap" async defer></script>
+    <script>
+        var map;
+        var polygons = [];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 12.9716, lng: 77.5946 },
+                zoom: 10.5,
+                mapTypeId: google.maps.MapTypeId.HYBRID
+            });
+            const urlParams = new URLSearchParams(window.location.search);
+            const phoneNumber = urlParams.get('phone');
+            console.log(phoneNumber); 
+
+            const url = `https://0ackp0dmg6.execute-api.us-west-1.amazonaws.com/dev/admin-approved?phone=${encodeURIComponent(phoneNumber)}`;
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                var body = JSON.parse(data['body-json']['body']);
+                var tbody = document.querySelector("#myTable tbody");
+
+                body.forEach(function(item) {
+                    var row = document.createElement("tr");
+
+                    var osnumberCell = document.createElement("td");
+                    osnumberCell.innerText = item.osnumber;
+                    osnumberCell.dataset.coordinates = item.coordinates;
+                    osnumberCell.dataset.documents = item.documents;
+                    osnumberCell.onclick = function() {
+                        refreshMap();
+
+                        var tableCells = document.querySelectorAll("#myTable td");
+                        tableCells.forEach(function(cell) {
+                            cell.classList.remove("selected");
+                        });
+
+                        this.classList.add("selected");
+
+                        var coordinates = this.dataset.coordinates.split(",");
+                        var paths = [];
+
+                        for (var i = 0; i < coordinates.length; i += 2) {
+                            var latLng = new google.maps.LatLng(parseFloat(coordinates[i]), parseFloat(coordinates[i + 1]));
+                            paths.push(latLng);
+                        }
+
+                        var polygon = new google.maps.Polygon({
+                            paths: paths,
+                            strokeColor: "#FF0000",
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: "#FF0000",
+                            fillOpacity: 0.35
+                        });
+
+                        polygons.push(polygon);
+                        polygon.setMap(map);
+
+                        var bounds = new google.maps.LatLngBounds();
+
+                        paths.forEach(function(path) {
+                            bounds.extend(path);
+                        });
+
+                        map.fitBounds(bounds);
+                    };
+
+                    var documentsCell = document.createElement("td");
+                    var link = document.createElement("a");
+                    link.href = item.documents;
+                    link.innerText = "View Document";
+                    documentsCell.appendChild(link);
+
+                    var submittedByCell = document.createElement("td");
+                    submittedByCell.innerText = item.userPhoneNumber;
+
+                    row.appendChild(osnumberCell);
+                    row.appendChild(submittedByCell);
+                    row.appendChild(documentsCell);
+
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => console.error(error));
+        }
+
+        function refreshMap() {
+            for (var i = 0; i < polygons.length; i++) {
+                polygons[i].setMap(null);
+            }
+
+            polygons = [];
+            map.setCenter({ lat: 12.9716, lng: 77.5946 });
+            map.setZoom(10);
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <h1>
+            <a href="admindashboard.html">
+                <button id="back">Back</button>
+            </a>
+            Daave (ದಾವೆ)
+        </h1>
+    </header>
+    <div class="container">
+        <div id="heading">
+        <h2>Verified by you</h2>
+        </div>
+        <div id="column">
+            <table id="myTable">
+                <thead>
+                    <tr>
+                        <th>O.S. No.</th>
+                        <th>Submitted By</th>
+                        <th>Documents</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="column">
+            <button id="refresh" onclick="refreshMap()">Refresh</button>
+            <div id="map"></div>
+        </div>
+    </div>
+</body>
+</html>

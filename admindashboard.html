@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" type="text/css" href="dashboard.css">
+</head>
+<body>
+  <header>
+    <div class="logo">Daave (ದಾವೆ)</div>
+    <nav>
+      <a href="index.html">Back</a>
+    </nav>
+  </header>
+
+  <div class="dashboard">
+    <h2 class="welcome-admin">Welcome, Admin!</h2>
+    <div class="dashboard-boxes">
+      <div class="dashboard-box" id="verification-box">
+        <h3>Verification</h3>
+        <p>Click here to access the Verification section.</p>
+      </div>
+      <div class="dashboard-box" id="approved-box">
+        <h3>Approved</h3>
+        <p>Click here to access the Approved section.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const verificationBox = document.getElementById('verification-box');
+    const approvedBox = document.getElementById('approved-box');
+    const urlParams = new URLSearchParams(window.location.search);
+    const phoneNumber = urlParams.get('phone');
+    
+    verificationBox.addEventListener('click', function() {
+      window.location.href = `litigation_retrieve.html?phone=${encodeURIComponent(phoneNumber)}`;
+    });
+    approvedBox.addEventListener('click', function() {
+        window.location.href = `approved.html?phone=${encodeURIComponent(phoneNumber)}`;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DAAVE</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="submit.css">
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=default" defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3FtL6J_gdoFLRkbesLGtD9ixCZ2rFhsM&libraries=drawing&callback=initMap" defer></script>
+</head>
+<body>
+  <header>
+    <h1>DAAVE (ದಾವೆ)</h1>
+    <div class="navbar">
+      <a href="index.html">Back</a>
+    </div>
+  </header>
+<div>
+  <label for="os-id">Os Number:</label>
+  <input type="text" id="os-id" name="os-id">
+</div>
+<form id="upload-form">
+  <input type="file" id="file" class="input-file" />
+</form>
+<div id="map"></div>
+<button id="refresh" onclick="refreshMap()">Refresh</button>
+<button id="submit" onclick="submitForm()">Submit</button>
+<div class="submit-message">
+  <h1>To view your submitted cases <a href="user-submitted.html" id="user-submitted-link">Click here</a></h1>
+</div>
+<script>
+  let map, drawingManager, bangalorePolygon, boundaryPolygon, freeShape, path;
+  const bangaloreBounds = [
+    { lat: 13.097040, lng: 77.387970 }, // Nelamangala town
+    { lat: 13.106682, lng: 77.609619 }, // Rajanukunte
+    { lat: 13.050633, lng: 77.783935 }, // Budigere
+    { lat: 12.735798, lng: 77.836916 }, // Hosur
+    { lat: 12.721066, lng: 77.290146 }, // Ramanagara
+    { lat: 12.869987, lng: 77.348036 }, // Manchanabele
+  ];
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 12.9716, lng: 77.5946 },
+      zoom: 12.5,
+      mapTypeId: google.maps.MapTypeId.HYBRID
+    });
+
+    // Define boundary polygon
+    boundaryPolygon = new google.maps.Polygon({
+      paths: bangaloreBounds,
+      strokeColor: "#000000",
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: "#000000",
+      fillOpacity: 0.15,
+      map: map
+    });
+
+    drawingManager = new google.maps.drawing.DrawingManager({
+      drawingMode: google.maps.drawing.OverlayType.POLYGON,
+      drawingControl: true,
+      drawingControlOptions: {
+        position: google.maps.ControlPosition.TOP_CENTER,
+        drawingModes: [google.maps.drawing.OverlayType.POLYGON],
+      },
+      polygonOptions: {
+        strokeColor: "#FF0000",
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: "#FF0000",
+        fillOpacity: 0.35,
+      },
+    });
+    drawingManager.setMap(map);
+
+    google.maps.event.addListener(drawingManager, "overlaycomplete", (event) => {
+      if (event.type == google.maps.drawing.OverlayType.POLYGON) {
+        path = event.overlay.getPath();
+        event.overlay.setMap(null);
+        const polygonBounds = new google.maps.LatLngBounds();
+        for (let i = 0; i < path.getLength(); i++) {
+          polygonBounds.extend(path.getAt(i));
+        }
+        const polygonCenter = polygonBounds.getCenter();
+        if (google.maps.geometry.poly.containsLocation(polygonCenter, boundaryPolygon)) {
+          freeShape = new google.maps.Polygon({
+            strokeColor: "#FF0000",
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: "#FF0000",
+            fillOpacity: 0.35,
+            map: map,
+            path: path,
+          });
+        } else {
+          alert("Location is outside Bangalore. Please mark a location within Bangalore.");
+          event.overlay.setMap(null);
+        }
+      }
+    });
+
+    bangalorePolygon = new google.maps.Polygon({
+      paths: bangaloreBounds,
+    });
+  }
+
+  function refreshMap() {
+    freeShape.setMap(null);
+    path = null;
+  }
+
+  async function submitForm() {
+    const osNumber = document.getElementById("os-id").value;
+    const path = freeShape.getPath();
+    const coordinates = {};
+    for (let i = 0; i < path.getLength(); i++) {
+      const markerLabel = `Marker #${i + 1}`;
+      const latLng = {
+        lat: path.getAt(i).lat().toFixed(15),
+        lng: path.getAt(i).lng().toFixed(15)
+      };
+      coordinates[markerLabel] = latLng;
+    }
+
+    const fileInput = document.getElementById("file");
+    if (!fileInput.files.length) {
+      alert("Please select a file to upload");
+      return;
+    }
+    const file = fileInput.files[0];
+    const fileName = file.name;
+
+    const fileData = await readFileAsDataURL(file);
+    const url = "https://0jkb74b3qa.execute-api.us-west-1.amazonaws.com/dev/landcasedocs/" + fileName;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/pdf",
+      },
+      body: fileData,
+    });
+
+    if (!response.ok) {
+      alert("There was an error uploading the file.");
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const phoneNumber = urlParams.get('phone');
+    console.log('Phone Number:', phoneNumber);
+
+    const payload = {
+      osNumber: osNumber,
+      coordinates: coordinates,
+      fileName: fileName,
+      phoneNumber: phoneNumber
+    };
+
+    console.log('Payload:', payload);
+    const submitResponse = await fetch('https://z67y80kz0j.execute-api.us-west-1.amazonaws.com/dev/litigation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'tYyHmpJGvC6ftEahT6KB7aWp5kMnlY0uaI4NEF54'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!submitResponse.ok) {
+      alert("There was an error submitting the data.");
+      return;
+    }
+
+    alert("File uploaded and data submitted successfully!");
+  }
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  
+  const clickHereLink = document.getElementById('user-submitted-link');
+  clickHereLink.addEventListener('click', function(event) {
+    event.preventDefault(); // Prevent the default behavior of the link (opening a new page)
+    
+    // Redirect to the next page (user_submitted.html) with the phone number as a query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const phoneNumber = urlParams.get('phone');
+    window.location.href = `user_submitted.html?phone=${encodeURIComponent(phoneNumber)}`;
+  });
+</script>
+
+</body>
+</html>

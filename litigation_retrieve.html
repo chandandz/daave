@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3FtL6J_gdoFLRkbesLGtD9ixCZ2rFhsM&callback=initMap" async defer></script>
+    <script>
+        var map;
+        var polygons = [];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 12.9716, lng: 77.5946 },
+                zoom: 10.5,
+                mapTypeId: google.maps.MapTypeId.HYBRID
+            });
+            // Get the phone number from the URL query parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const phoneNumber = urlParams.get('phone');
+            console.log(phoneNumber); // Display the phone number in the console
+
+            // You can then use the phoneNumber variable as needed in your code
+
+            fetch('https://9xfncm9rg8.execute-api.us-west-1.amazonaws.com/dev/litigation', { 
+                headers: new Headers({
+                    'x-api-key': '62W7AWhzMbaFEMnkDDWA36ISrQR2s38V82zaPFOs'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                var body = JSON.parse(data['body-json']['body']);
+                var tbody = document.querySelector("#myTable tbody");
+
+                body.forEach(function(item) {
+                    var row = document.createElement("tr");
+
+                    var osnumberCell = document.createElement("td");
+                    osnumberCell.innerText = item.osnumber;
+                    osnumberCell.dataset.coordinates = item.coordinates;
+                    osnumberCell.dataset.documents = item.documents;
+                    osnumberCell.onclick = function() {
+                        refreshMap();
+
+                        // Remove the 'selected' class from all table cells
+                        var tableCells = document.querySelectorAll("#myTable td");
+                        tableCells.forEach(function(cell) {
+                            cell.classList.remove("selected");
+                        });
+
+                        // Add the 'selected' class to the clicked table cell
+                        this.classList.add("selected");
+
+                        var coordinates = this.dataset.coordinates.split(",");
+                        var paths = [];
+
+                        for (var i = 0; i < coordinates.length; i += 2) {
+                            var latLng = new google.maps.LatLng(parseFloat(coordinates[i]), parseFloat(coordinates[i + 1]));
+                            paths.push(latLng);
+                        }
+
+                        var polygon = new google.maps.Polygon({
+                            paths: paths,
+                            strokeColor: "#FF0000",
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: "#FF0000",
+                            fillOpacity: 0.35
+                        });
+
+                        polygons.push(polygon);
+                        polygon.setMap(map);
+
+                        var bounds = new google.maps.LatLngBounds();
+
+                        paths.forEach(function(path) {
+                            bounds.extend(path);
+                        });
+
+                        map.fitBounds(bounds);
+                    };
+
+                    var documentsCell = document.createElement("td");
+                    var link = document.createElement("a");
+                    link.href = item.documents;
+                    link.innerText = "View Document";
+                    documentsCell.appendChild(link);
+
+                    var verifyCell = document.createElement("td");
+                    var verifySelect = document.createElement("select");
+                    verifySelect.name = "verificationStatus";
+                    verifySelect.classList.add("verification-select");
+
+                    var verifyOptionPlaceholder = document.createElement("option");
+                    verifyOptionPlaceholder.disabled = true;
+                    verifyOptionPlaceholder.selected = true;
+                    verifyOptionPlaceholder.hidden = true;
+                    verifyOptionPlaceholder.value = "";
+                    verifyOptionPlaceholder.text = "Status";
+                    verifySelect.appendChild(verifyOptionPlaceholder);
+
+                    var verifyOption1 = document.createElement("option");
+                    verifyOption1.value = "verified";
+                    verifyOption1.text = "Verified";
+                    verifySelect.appendChild(verifyOption1);
+
+                    var verifyOption2 = document.createElement("option");
+                    verifyOption2.value = "not-verified";
+                    verifyOption2.text = "Not Verified";
+                    verifySelect.appendChild(verifyOption2);
+
+                    var submittedByCell = document.createElement("td");
+                    submittedByCell.innerText = item.userPhoneNumber;
+
+                    var verifiedByCell = document.createElement("td");
+                    verifiedByCell.innerText = item.adminPhoneNumber;
+
+                    var submitButton = document.createElement("button");
+                    submitButton.innerText = "Submit";
+                    submitButton.classList.add("small-button");
+                    submitButton.onclick = function() {
+                        var selectedOption = verifySelect.value;
+                        var osNumber = osnumberCell.innerText;
+
+                        // Validation check: Verify that an option is selected
+                        if (selectedOption === "") {
+                            alert("Please select a verification status.");
+                            return;
+                        }
+                        var requestData = {
+                            osNumber: osNumber,
+                            phoneNumber: phoneNumber,
+                            verificationStatus: selectedOption
+                        };
+
+                        // Log the data object in the console
+                        console.log(requestData);
+
+                        // Send the data to the API Gateway post method
+                        fetch('https://r4yf9c8n5j.execute-api.us-west-1.amazonaws.com/dev/verify', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestData)
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            // Handle the response if needed
+                            console.log(data);
+
+                            // Disable the selected option in the table
+                            verifySelect.disabled = true;
+                            verifySelect.value = selectedOption;
+                        })
+                        .catch(error => console.error(error));
+                    };
+
+                    verifyCell.appendChild(verifySelect);
+                    verifyCell.appendChild(submitButton);
+
+                    row.appendChild(osnumberCell);
+                    row.appendChild(submittedByCell);
+                    row.appendChild(documentsCell);
+                    row.appendChild(verifyCell);
+                    
+                    row.appendChild(verifiedByCell);
+
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => console.error(error));
+        }
+
+        function refreshMap() {
+            for (var i = 0; i < polygons.length; i++) {
+                polygons[i].setMap(null);
+            }
+
+            polygons = [];
+            map.setCenter({ lat: 12.9716, lng: 77.5946 });
+            map.setZoom(10);
+        }
+    </script>
+    <style>
+        /* Add CSS styles for 'verified' class */
+        .verified {
+            background-color: #0f380f;
+        }
+
+        /* Add CSS styles for 'small-button' class */
+        .small-button {
+            font-size: 11px;
+            padding: 5px 5px;
+            margin-top: 4px;
+            margin-right: 50px;
+            background-color: #0069d9;
+        }
+        .small-button:hover {
+    background-color:rgb(13, 100, 49);
+  }
+
+        /* Add CSS styles for 'verification-select' class */
+        .verification-select {
+            margin-top: 12px;
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>
+            <a href="admindashboard.html">
+                <button id="back">Back</button>
+            </a>
+            Daave (ದಾವೆ)
+        </h1>
+    </header>
+    <div class="container">
+        <div id="column">
+            <table id="myTable">
+                <thead>
+                    <tr>
+                        <th>O.S. No.</th>
+                        <th>Submitted By</th>
+                        <th>Documents</th>
+                        <th>Verify</th>
+                        <th>Verified By</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="column">
+            <button id="refresh" onclick="refreshMap()">Refresh</button>
+            <div id="map"></div>
+        </div>
+    </div>
+</body>
+</html>
